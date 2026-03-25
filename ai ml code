@@ -1,0 +1,94 @@
+# ...existing code...
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score
+
+# Use raw string for Windows path (or replace with the correct path)
+file_path = r"C:\Users\Navneet Kumar\Downloads\pathtoyourdatasetewaste_data.xlsx.xlsx"
+data = pd.read_excel(file_path)
+
+print("Dataset Loaded Successfully!")
+print(data.head())
+print("Columns:", data.columns.tolist())
+
+# Detect label column case-insensitively, fall back to detecting a binary 0/1 column
+label_candidates = [c for c in data.columns if c.lower() == "label"]
+if label_candidates:
+    label_col = label_candidates[0]
+else:
+    bin_cols = [c for c in data.columns if set(data[c].dropna().unique()).issubset({0, 1})]
+    if len(bin_cols) == 1:
+        label_col = bin_cols[0]
+    else:
+        raise KeyError(f"Label column not found. Columns: {data.columns.tolist()}")
+
+print(f"Using label column: {label_col}")
+
+# ----------------------------------------------------
+# 3. Separate Features (X) and Target Label (y)
+# ----------------------------------------------------
+X = data.drop(label_col, axis=1)
+y = data[label_col]
+
+# Identify categorical + numeric columns
+categorical_cols = X.select_dtypes(include=['object', 'category']).columns
+numeric_cols = X.select_dtypes(include=['int64', 'float64', 'number']).columns
+
+# ----------------------------------------------------
+# 4. Preprocessing Pipeline
+# ----------------------------------------------------
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), list(categorical_cols)),
+        ('num', StandardScaler(), list(numeric_cols))
+    ]
+)
+
+# ----------------------------------------------------
+# 5. Create Logistic Regression Pipeline
+# ----------------------------------------------------
+model = Pipeline(steps=[
+    ('preprocessing', preprocessor),
+    ('classifier', LogisticRegression(max_iter=200, class_weight='balanced'))
+])
+
+# ----------------------------------------------------
+# 6. Train-Test Split
+# ----------------------------------------------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.20, random_state=42, stratify=y
+)
+
+# ----------------------------------------------------
+# 7. Train the Model
+# ----------------------------------------------------
+model.fit(X_train, y_train)
+
+# ----------------------------------------------------
+# 8. Make Predictions
+# ----------------------------------------------------
+y_pred = model.predict(X_test)
+y_prob = model.predict_proba(X_test)[:, 1]
+
+# ----------------------------------------------------
+# 9. Evaluate the Model
+# ----------------------------------------------------
+print("\nAccuracy:", accuracy_score(y_test, y_pred))
+print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+print("\nROC-AUC Score:", roc_auc_score(y_test, y_prob))
+
+# ----------------------------------------------------
+# 10. Example Prediction (Enter any sample)
+# ----------------------------------------------------
+sample = X.iloc[[0]]   # test using first row of your dataset
+prediction = model.predict(sample)[0]
+probability = model.predict_proba(sample)[0][1]
+
+print("\nSample Prediction:", prediction)
+print("Hazardous Probability:", round(probability * 100, 2), "%")
+# ...existing code...
